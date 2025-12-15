@@ -1,8 +1,13 @@
 --==================================================
+-- RatTupTup Hup (VIP) | v1.0
 -- Rogue Piece | Auto Farm Anos
--- Delta / Mobile Safe | Save Everything (getgenv)
--- Auto Equip with Whitelist
+-- Delta / Mobile Safe | Save Everything
 --==================================================
+
+--================ VIP STYLE =================
+local VERSION = "v1.0"
+local VIP_GOLD = Color3.fromRGB(255,215,90)
+local VIP_NEON = Color3.fromRGB(255,240,180)
 
 --================ SERVICES =================
 local Players = game:GetService("Players")
@@ -16,7 +21,6 @@ local PlaceId = game.PlaceId
 
 --================ SAVE ALL =================
 getgenv().RP_Save = getgenv().RP_Save or {
-    -- Core
     AutoFarm = false,
     Running  = false,
 
@@ -47,7 +51,11 @@ local S = getgenv().RP_Save
 local Library = loadstring(game:HttpGet(
     "https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"
 ))()
-local Window = Library.CreateLib("Rogue Piece Hub","Midnight")
+
+local Window = Library.CreateLib(
+    "RatTupTup Hup (VIP)  |  "..VERSION,
+    "Midnight"
+)
 
 --================ BOSS DETECT =================
 local function GetAnos()
@@ -65,7 +73,7 @@ end
 --================ AUTO EQUIP (WITH LIST) =================
 local function NameInList(name)
     for _,v in ipairs(S.EquipList) do
-        if v ~= "" and string.find(string.lower(name), string.lower(v), 1, true) then
+        if v ~= "" and string.find(name:lower(), v:lower(), 1, true) then
             return true
         end
     end
@@ -79,7 +87,6 @@ local function AutoEquip()
     if not char or not hum or not bag then return end
     if char:FindFirstChildOfClass("Tool") then return end
 
-    -- ใช้ลิสต์ก่อน
     if S.UseEquipList and #S.EquipList > 0 then
         for _,tool in ipairs(bag:GetChildren()) do
             if tool:IsA("Tool") and NameInList(tool.Name) then
@@ -89,7 +96,6 @@ local function AutoEquip()
         end
     end
 
-    -- fallback: ถือ Tool แรก
     for _,tool in ipairs(bag:GetChildren()) do
         if tool:IsA("Tool") then
             hum:EquipTool(tool)
@@ -118,17 +124,14 @@ local function TweenBehindAnos()
     Tweening = false
 end
 
---================ AUTO ATTACK LOOP =================
+--================ AUTO ATTACK =================
 task.spawn(function()
     while task.wait(0.25) do
         if S.AutoFarm then
             AutoEquip()
             TweenBehindAnos()
-
             local tool = LP.Character and LP.Character:FindFirstChildOfClass("Tool")
-            if tool then
-                pcall(function() tool:Activate() end)
-            end
+            if tool then pcall(function() tool:Activate() end) end
         end
     end
 end)
@@ -185,30 +188,16 @@ local function StartAutoHop(Status)
             break
         end
     end)
-
-    -- Public check
-    if S.HopMode=="Public" then
-        task.spawn(function()
-            task.wait(S.PublicCheckTime)
-            if not GetAnos() then
-                Status:UpdateLabel("❌ ไม่มี Anos → ข้าม")
-                task.wait(1)
-                HopPublic()
-            else
-                Status:UpdateLabel("✅ เจอ Anos")
-                S.AutoFarm = true
-            end
-        end)
-    end
 end
 
 --================ UI =================
-local Main = Window:NewTab("Main"):NewSection("Control")
-local Equip = Window:NewTab("Equip"):NewSection("Auto Equip List")
-local Status = Window:NewTab("Status"):NewSection("Info")
+local Main   = Window:NewTab("Main [VIP]"):NewSection("Control")
+local Equip  = Window:NewTab("Equip [VIP]"):NewSection("Auto Equip List")
+local Status = Window:NewTab("Status [VIP]"):NewSection("Info")
+
 local StatusLabel = Status:NewLabel("พร้อมใช้งาน")
 
-Main:NewToggle("Auto Farm Anos","",function(v)
+Main:NewToggle("Auto Farm Anos [VIP]","",function(v)
     if v then
         StartAutoHop(StatusLabel)
     else
@@ -234,19 +223,12 @@ Main:NewSlider("Wait Time","",120,5,function(v)
     S.WaitTime=v
 end)
 
-Main:NewSlider("Public Check Time","",15,3,function(v)
-    S.PublicCheckTime=v
-end)
-
--- Equip List UI
 Equip:NewToggle("Use Equip List","",function(v)
-    S.UseEquipList = v
+    S.UseEquipList=v
 end)
 
 Equip:NewTextBox("Add Tool Name","เช่น Combat / Katana",function(txt)
-    if txt ~= "" then
-        table.insert(S.EquipList, txt)
-    end
+    if txt~="" then table.insert(S.EquipList,txt) end
 end)
 
 Equip:NewButton("Clear Equip List","",function()
@@ -256,12 +238,26 @@ end)
 local ListLabel = Equip:NewLabel("List: (empty)")
 task.spawn(function()
     while task.wait(1) do
-        if #S.EquipList > 0 then
+        if #S.EquipList>0 then
             ListLabel:UpdateLabel("List: "..table.concat(S.EquipList,", "))
         else
             ListLabel:UpdateLabel("List: (empty)")
         end
     end
+end)
+
+--================ VIP CREDIT (GOLD / NEON) =================
+task.spawn(function()
+    task.wait(1)
+    local credit = Status:NewLabel(
+        "✨ RatTupTup Hup (VIP) ✨\n"..VERSION.."\n© RatTupTup"
+    )
+    pcall(function()
+        local ui = credit.Instance
+        ui.TextColor3 = VIP_GOLD
+        ui.TextStrokeTransparency = 0.3
+        ui.TextStrokeColor3 = VIP_NEON
+    end)
 end)
 
 --================ MOBILE UI BUTTON =================
@@ -273,8 +269,8 @@ btn.Size = UDim2.fromOffset(50,50)
 btn.Position = UDim2.fromScale(0.05,0.4)
 btn.Text = "≡"
 btn.TextScaled = true
-btn.BackgroundColor3 = Color3.fromRGB(30,30,30)
-btn.TextColor3 = Color3.new(1,1,1)
+btn.BackgroundColor3 = VIP_GOLD
+btn.TextColor3 = Color3.fromRGB(30,30,30)
 btn.Active = true
 btn.Draggable = true
 btn.BorderSizePixel = 0
@@ -290,4 +286,4 @@ UserInputService.InputBegan:Connect(function(i,gp)
     end
 end)
 
-StatusLabel:UpdateLabel("Delta / Mobile Ready")
+StatusLabel:UpdateLabel("VIP Ready | Delta / Mobile")
