@@ -1,0 +1,201 @@
+--==================================================
+-- Rogue Piece | Auto Farm Anos (DELTA SAFE)
+--==================================================
+
+--================ SERVICES =================
+local Players = game:GetService("Players")
+local TeleportService = game:GetService("TeleportService")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local HttpService = game:GetService("HttpService")
+
+local LocalPlayer = Players.LocalPlayer
+local PlaceId = game.PlaceId
+
+--================ CONFIG (getgenv SAVE) =================
+getgenv().RP_Config = getgenv().RP_Config or {
+    HopMode = "Private",      -- Private / Public
+    Servers = {},
+    ServerIndex = 1,
+
+    WaitTime = 30,
+    PublicCheckTime = 8,
+
+    WarpDistance = 4,
+    TweenTime = 0.25,
+
+    AutoFarm = false,
+    Running = false
+}
+local Config = getgenv().RP_Config
+
+--================ LOAD KAVO UI =================
+local Library = loadstring(game:HttpGet(
+    "https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"
+))()
+local Window = Library.CreateLib("Rogue Piece Hub","Midnight")
+
+--================ BOSS DETECT =================
+local function GetAnos()
+    for _,m in ipairs(workspace:GetDescendants()) do
+        if m.Name=="Anos" and m:IsA("Model") then
+            local hum = m:FindFirstChildOfClass("Humanoid")
+            local hrp = m:FindFirstChild("HumanoidRootPart")
+            if hum and hrp then
+                return hum, hrp
+            end
+        end
+    end
+end
+
+--================ TWEEN MOVE =================
+local Tweening = false
+local function TweenBehindAnos()
+    if Tweening then return end
+    local hum, hrp = GetAnos()
+    local char = LocalPlayer.Character
+    local myhrp = char and char:FindFirstChild("HumanoidRootPart")
+    if not hum or hum.Health<=0 or not hrp or not myhrp then return end
+
+    Tweening = true
+    local targetCF = hrp.CFrame * CFrame.new(0,0,Config.WarpDistance)
+    local tween = TweenService:Create(
+        myhrp,
+        TweenInfo.new(Config.TweenTime, Enum.EasingStyle.Linear),
+        {CFrame = targetCF}
+    )
+    tween:Play()
+    tween.Completed:Wait()
+    Tweening = false
+end
+
+--================ AUTO ATTACK =================
+task.spawn(function()
+    while task.wait(0.2) do
+        if Config.AutoFarm then
+            local hum = GetAnos()
+            if hum then
+                TweenBehindAnos()
+                local tool = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Tool")
+                if tool then pcall(function() tool:Activate() end) end
+            end
+        end
+    end
+end)
+
+--================ PUBLIC HOP =================
+local function HopPublic()
+    local ok,res = pcall(function()
+        return HttpService:JSONDecode(game:HttpGet(
+            "https://games.roblox.com/v1/games/"..PlaceId.."/servers/Public?limit=100"
+        ))
+    end)
+    if ok and res and res.data and #res.data>0 then
+        local s = res.data[math.random(#res.data)]
+        TeleportService:TeleportToPlaceInstance(PlaceId,s.id,LocalPlayer)
+    end
+end
+
+--================ AUTO HOP CORE =================
+local function StartAutoHop(StatusLabel)
+    if Config.Running then return end
+    Config.Running = true
+
+    task.spawn(function()
+        while Config.Running do
+            local t = Config.WaitTime
+            while t>0 do
+                StatusLabel:UpdateLabel("⏳ รอ "..t.." วิ")
+                task.wait(1)
+                t -= 1
+
+                local hum = GetAnos()
+                if hum and hum.Health>0 then
+                    StatusLabel:UpdateLabel("⚔️ เจอ Anos")
+                    Config.AutoFarm = true
+                    while hum.Health>0 do task.wait(1) end
+                    Config.AutoFarm = false
+                    StatusLabel:UpdateLabel("☠️ Anos ตาย")
+                    break
+                end
+            end
+
+            StatusLabel:UpdateLabel("🔁 เปลี่ยนเซิฟ")
+
+            if Config.HopMode=="Private" then
+                if #Config.Servers==0 then
+                    StatusLabel:UpdateLabel("❌ ไม่มี AccessCode")
+                    Config.Running=false
+                    return
+                end
+                local code = Config.Servers[Config.ServerIndex]
+                Config.ServerIndex = Config.ServerIndex % #Config.Servers + 1
+                TeleportService:TeleportToPrivateServer(PlaceId,code,LocalPlayer)
+            else
+                HopPublic()
+            end
+            break
+        end
+    end)
+
+    -- Public → Check Anos
+    if Config.HopMode=="Public" then
+        task.spawn(function()
+            task.wait(Config.PublicCheckTime)
+            if not GetAnos() then
+                StatusLabel:UpdateLabel("❌ Public ไม่มี Anos → ข้าม")
+                task.wait(1)
+                HopPublic()
+            else
+                StatusLabel:UpdateLabel("✅ Public เจอ Anos")
+                Config.AutoFarm = true
+            end
+        end)
+    end
+end
+
+--================ UI =================
+local MainTab = Window:NewTab("Main")
+local Main = MainTab:NewSection("Control")
+
+local StatusTab = Window:NewTab("Status")
+local StatusSec = StatusTab:NewSection("Info")
+local StatusLabel = StatusSec:NewLabel("พร้อมใช้งาน")
+
+Main:NewDropdown("โหมดย้ายเซิฟ","",{"Private","Public"},function(v)
+    Config.HopMode = v
+end)
+
+Main:NewTextBox("Add Private Server","AccessCode",function(v)
+    if v~="" then table.insert(Config.Servers,v) end
+end)
+
+Main:NewSlider("Wait Time","",120,5,function(v)
+    Config.WaitTime = v
+end)
+
+Main:NewSlider("Warp Distance","",8,2,function(v)
+    Config.WarpDistance = v
+end)
+
+Main:NewSlider("Public Check Time","",15,3,function(v)
+    Config.PublicCheckTime = v
+end)
+
+Main:NewToggle("Auto Farm Anos","",function(v)
+    if v then
+        StartAutoHop(StatusLabel)
+    else
+        Config.Running=false
+        Config.AutoFarm=false
+        StatusLabel:UpdateLabel("⏸ หยุดแล้ว")
+    end
+end)
+
+UserInputService.InputBegan:Connect(function(i,gp)
+    if not gp and i.KeyCode==Enum.KeyCode.RightShift then
+        Library:ToggleUI()
+    end
+end)
+
+StatusLabel:UpdateLabel("Delta Ready | RightShift เปิด/ปิด UI")
