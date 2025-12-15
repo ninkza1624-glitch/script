@@ -1,6 +1,7 @@
 --==================================================
 -- Rogue Piece | Auto Farm Anos
 -- Delta / Mobile Safe | Save Everything (getgenv)
+-- Auto Equip with Whitelist
 --==================================================
 
 --================ SERVICES =================
@@ -21,6 +22,8 @@ getgenv().RP_Save = getgenv().RP_Save or {
 
     -- Auto Equip
     AutoEquip = true,
+    UseEquipList = true,
+    EquipList = {},
 
     -- Movement
     WarpDistance = 4,
@@ -59,15 +62,34 @@ local function GetAnos()
     end
 end
 
---================ AUTO EQUIP =================
+--================ AUTO EQUIP (WITH LIST) =================
+local function NameInList(name)
+    for _,v in ipairs(S.EquipList) do
+        if v ~= "" and string.find(string.lower(name), string.lower(v), 1, true) then
+            return true
+        end
+    end
+end
+
 local function AutoEquip()
     if not S.AutoEquip then return end
     local char = LP.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    local bag = LP:FindFirstChild("Backpack")
+    local hum  = char and char:FindFirstChildOfClass("Humanoid")
+    local bag  = LP:FindFirstChild("Backpack")
     if not char or not hum or not bag then return end
     if char:FindFirstChildOfClass("Tool") then return end
 
+    -- ใช้ลิสต์ก่อน
+    if S.UseEquipList and #S.EquipList > 0 then
+        for _,tool in ipairs(bag:GetChildren()) do
+            if tool:IsA("Tool") and NameInList(tool.Name) then
+                hum:EquipTool(tool)
+                return
+            end
+        end
+    end
+
+    -- fallback: ถือ Tool แรก
     for _,tool in ipairs(bag:GetChildren()) do
         if tool:IsA("Tool") then
             hum:EquipTool(tool)
@@ -182,6 +204,7 @@ end
 
 --================ UI =================
 local Main = Window:NewTab("Main"):NewSection("Control")
+local Equip = Window:NewTab("Equip"):NewSection("Auto Equip List")
 local Status = Window:NewTab("Status"):NewSection("Info")
 local StatusLabel = Status:NewLabel("พร้อมใช้งาน")
 
@@ -213,6 +236,32 @@ end)
 
 Main:NewSlider("Public Check Time","",15,3,function(v)
     S.PublicCheckTime=v
+end)
+
+-- Equip List UI
+Equip:NewToggle("Use Equip List","",function(v)
+    S.UseEquipList = v
+end)
+
+Equip:NewTextBox("Add Tool Name","เช่น Combat / Katana",function(txt)
+    if txt ~= "" then
+        table.insert(S.EquipList, txt)
+    end
+end)
+
+Equip:NewButton("Clear Equip List","",function()
+    table.clear(S.EquipList)
+end)
+
+local ListLabel = Equip:NewLabel("List: (empty)")
+task.spawn(function()
+    while task.wait(1) do
+        if #S.EquipList > 0 then
+            ListLabel:UpdateLabel("List: "..table.concat(S.EquipList,", "))
+        else
+            ListLabel:UpdateLabel("List: (empty)")
+        end
+    end
 end)
 
 --================ MOBILE UI BUTTON =================
