@@ -1,5 +1,6 @@
 --==================================================
--- Rogue Piece | Auto Farm Anos (Delta / Mobile Safe)
+-- Rogue Piece | Auto Farm Anos
+-- Delta / Mobile Safe | Save Everything (getgenv)
 --==================================================
 
 --================ SERVICES =================
@@ -9,25 +10,35 @@ local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local HttpService = game:GetService("HttpService")
 
-local LocalPlayer = Players.LocalPlayer
+local LP = Players.LocalPlayer
 local PlaceId = game.PlaceId
 
---================ CONFIG (SAVE) =================
-getgenv().RP_Config = getgenv().RP_Config or {
-    HopMode = "Private",     -- Private / Public
-    Servers = {},
-    ServerIndex = 1,
+--================ SAVE ALL =================
+getgenv().RP_Save = getgenv().RP_Save or {
+    -- Core
+    AutoFarm = false,
+    Running  = false,
 
-    WaitTime = 30,
-    PublicCheckTime = 8,
+    -- Auto Equip
+    AutoEquip = true,
 
+    -- Movement
     WarpDistance = 4,
     TweenTime = 0.25,
 
-    AutoFarm = false,
-    Running = false
+    -- Hop
+    HopMode = "Private",   -- Private / Public
+    Servers = {},
+    ServerIndex = 1,
+
+    -- Timing
+    WaitTime = 30,
+    PublicCheckTime = 8,
+
+    -- UI
+    UIOpen = true
 }
-local Config = getgenv().RP_Config
+local S = getgenv().RP_Save
 
 --================ LOAD KAVO UI =================
 local Library = loadstring(game:HttpGet(
@@ -48,13 +59,13 @@ local function GetAnos()
     end
 end
 
---================ AUTO EQUIP (DELTA SAFE) =================
+--================ AUTO EQUIP =================
 local function AutoEquip()
-    local char = LocalPlayer.Character
+    if not S.AutoEquip then return end
+    local char = LP.Character
     local hum = char and char:FindFirstChildOfClass("Humanoid")
-    local bag = LocalPlayer:FindFirstChild("Backpack")
+    local bag = LP:FindFirstChild("Backpack")
     if not char or not hum or not bag then return end
-
     if char:FindFirstChildOfClass("Tool") then return end
 
     for _,tool in ipairs(bag:GetChildren()) do
@@ -70,34 +81,31 @@ local Tweening = false
 local function TweenBehindAnos()
     if Tweening then return end
     local hum, hrp = GetAnos()
-    local char = LocalPlayer.Character
+    local char = LP.Character
     local myhrp = char and char:FindFirstChild("HumanoidRootPart")
     if not hum or hum.Health<=0 or not hrp or not myhrp then return end
 
     Tweening = true
     local tween = TweenService:Create(
         myhrp,
-        TweenInfo.new(Config.TweenTime, Enum.EasingStyle.Linear),
-        {CFrame = hrp.CFrame * CFrame.new(0,0,Config.WarpDistance)}
+        TweenInfo.new(S.TweenTime, Enum.EasingStyle.Linear),
+        {CFrame = hrp.CFrame * CFrame.new(0,0,S.WarpDistance)}
     )
     tween:Play()
     tween.Completed:Wait()
     Tweening = false
 end
 
---================ AUTO ATTACK =================
+--================ AUTO ATTACK LOOP =================
 task.spawn(function()
     while task.wait(0.25) do
-        if Config.AutoFarm then
+        if S.AutoFarm then
             AutoEquip()
             TweenBehindAnos()
 
-            local tool = LocalPlayer.Character
-                and LocalPlayer.Character:FindFirstChildOfClass("Tool")
+            local tool = LP.Character and LP.Character:FindFirstChildOfClass("Tool")
             if tool then
-                pcall(function()
-                    tool:Activate()
-                end)
+                pcall(function() tool:Activate() end)
             end
         end
     end
@@ -112,38 +120,43 @@ local function HopPublic()
     end)
     if ok and res and res.data and #res.data>0 then
         local s = res.data[math.random(#res.data)]
-        TeleportService:TeleportToPlaceInstance(PlaceId,s.id,LocalPlayer)
+        TeleportService:TeleportToPlaceInstance(PlaceId,s.id,LP)
     end
 end
 
 --================ AUTO HOP =================
 local function StartAutoHop(Status)
-    if Config.Running then return end
-    Config.Running = true
+    if S.Running then return end
+    S.Running = true
 
     task.spawn(function()
-        while Config.Running do
-            local t = Config.WaitTime
+        while S.Running do
+            local t = S.WaitTime
             while t>0 do
                 Status:UpdateLabel("⏳ รอ "..t.." วิ")
                 task.wait(1)
-                t-=1
+                t -= 1
                 local hum = GetAnos()
                 if hum and hum.Health>0 then
                     Status:UpdateLabel("⚔️ เจอ Anos")
-                    Config.AutoFarm = true
+                    S.AutoFarm = true
                     while hum.Health>0 do task.wait(1) end
-                    Config.AutoFarm = false
+                    S.AutoFarm = false
                     Status:UpdateLabel("☠️ Anos ตาย")
                     break
                 end
             end
 
             Status:UpdateLabel("🔁 เปลี่ยนเซิฟ")
-            if Config.HopMode=="Private" then
-                local code = Config.Servers[Config.ServerIndex]
-                Config.ServerIndex = Config.ServerIndex % #Config.Servers + 1
-                TeleportService:TeleportToPrivateServer(PlaceId,code,LocalPlayer)
+            if S.HopMode=="Private" then
+                if #S.Servers==0 then
+                    Status:UpdateLabel("❌ ไม่มี AccessCode")
+                    S.Running=false
+                    return
+                end
+                local code = S.Servers[S.ServerIndex]
+                S.ServerIndex = S.ServerIndex % #S.Servers + 1
+                TeleportService:TeleportToPrivateServer(PlaceId,code,LP)
             else
                 HopPublic()
             end
@@ -151,49 +164,60 @@ local function StartAutoHop(Status)
         end
     end)
 
-    -- Public → Check Anos
-    if Config.HopMode=="Public" then
+    -- Public check
+    if S.HopMode=="Public" then
         task.spawn(function()
-            task.wait(Config.PublicCheckTime)
+            task.wait(S.PublicCheckTime)
             if not GetAnos() then
                 Status:UpdateLabel("❌ ไม่มี Anos → ข้าม")
                 task.wait(1)
                 HopPublic()
             else
                 Status:UpdateLabel("✅ เจอ Anos")
-                Config.AutoFarm = true
+                S.AutoFarm = true
             end
         end)
     end
 end
 
 --================ UI =================
-local MainTab = Window:NewTab("Main")
-local Main = MainTab:NewSection("Control")
+local Main = Window:NewTab("Main"):NewSection("Control")
 local Status = Window:NewTab("Status"):NewSection("Info")
 local StatusLabel = Status:NewLabel("พร้อมใช้งาน")
-
-Main:NewDropdown("Hop Mode","",{"Private","Public"},function(v)
-    Config.HopMode=v
-end)
-
-Main:NewSlider("Warp Distance","",8,2,function(v)
-    Config.WarpDistance=v
-end)
 
 Main:NewToggle("Auto Farm Anos","",function(v)
     if v then
         StartAutoHop(StatusLabel)
     else
-        Config.AutoFarm=false
-        Config.Running=false
+        S.AutoFarm=false
+        S.Running=false
         StatusLabel:UpdateLabel("⏸ หยุดแล้ว")
     end
 end)
 
---================ MOBILE UI TOGGLE BUTTON =================
+Main:NewToggle("Auto Equip","",function(v)
+    S.AutoEquip = v
+end)
+
+Main:NewDropdown("Hop Mode","",{"Private","Public"},function(v)
+    S.HopMode=v
+end)
+
+Main:NewSlider("Warp Distance","",8,2,function(v)
+    S.WarpDistance=v
+end)
+
+Main:NewSlider("Wait Time","",120,5,function(v)
+    S.WaitTime=v
+end)
+
+Main:NewSlider("Public Check Time","",15,3,function(v)
+    S.PublicCheckTime=v
+end)
+
+--================ MOBILE UI BUTTON =================
 local gui = Instance.new("ScreenGui", game.CoreGui)
-gui.Name = "ToggleUI_Mobile"
+gui.Name = "MobileToggleUI"
 
 local btn = Instance.new("TextButton", gui)
 btn.Size = UDim2.fromOffset(50,50)
@@ -217,4 +241,4 @@ UserInputService.InputBegan:Connect(function(i,gp)
     end
 end)
 
-StatusLabel:UpdateLabel("Mobile / Delta Ready")
+StatusLabel:UpdateLabel("Delta / Mobile Ready")
