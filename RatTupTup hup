@@ -81,7 +81,7 @@ local function Start()
     Running=true
 
     
-    for t=30,1,-1 do
+    for t=15,1,-1 do
         if not _G.AutoHop then Running=false return end
         status.Text="รอ Anosเกิด นะอีBim เหลือ "..t.." วิ"
         if AnosAlive() then
