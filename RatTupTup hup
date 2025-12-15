@@ -1,0 +1,134 @@
+local Players=game:GetService("Players")
+local TS=game:GetService("TeleportService")
+local HS=game:GetService("HttpService")
+local P=Players.LocalPlayer
+local PID=game.PlaceId
+
+
+local QOT = queue_on_teleport
+    or (syn and syn.queue_on_teleport)
+    or (fluxus and fluxus.queue_on_teleport)
+
+
+_G.AutoHop = _G.AutoHop ~= false -- default = true
+local Running=false
+
+
+pcall(function()
+    if P.PlayerGui:FindFirstChild("AutoHopUI") then
+        P.PlayerGui.AutoHopUI:Destroy()
+    end
+end)
+
+local gui=Instance.new("ScreenGui",P.PlayerGui)
+gui.Name="AutoHopUI"
+gui.ResetOnSpawn=false
+
+local frame=Instance.new("Frame",gui)
+frame.Size=UDim2.fromScale(0.45,0.18)
+frame.Position=UDim2.fromScale(0.5,0.5)
+frame.AnchorPoint=Vector2.new(0.5,0.5)
+frame.BackgroundColor3=Color3.fromRGB(25,25,25)
+frame.BorderSizePixel=0
+Instance.new("UICorner",frame).CornerRadius=UDim.new(0,18)
+
+local status=Instance.new("TextLabel",frame)
+status.Size=UDim2.fromScale(1,0.55)
+status.BackgroundTransparency=1
+status.TextScaled=true
+status.Font=Enum.Font.GothamBold
+status.TextColor3=Color3.new(1,1,1)
+
+local btn=Instance.new("TextButton",frame)
+btn.Size=UDim2.fromScale(0.6,0.3)
+btn.Position=UDim2.fromScale(0.5,0.7)
+btn.AnchorPoint=Vector2.new(0.5,0.5)
+btn.TextScaled=true
+btn.Font=Enum.Font.GothamBold
+btn.TextColor3=Color3.new(1,1,1)
+btn.BorderSizePixel=0
+Instance.new("UICorner",btn).CornerRadius=UDim.new(0,14)
+
+
+local function AnosAlive()
+    for _,m in ipairs(workspace:GetDescendants()) do
+        if m.Name=="Anos" and m:IsA("Model") then
+            local h=m:FindFirstChildOfClass("Humanoid")
+            if h and h.Health>0 then return true end
+        end
+    end
+end
+
+local function QueueSelf()
+    if QOT then
+        QOT([[loadstring(game:HttpGet("PASTE_YOUR_SCRIPT_URL_HERE"))()]])
+       
+    end
+end
+
+local function RandomHop()
+    status.Text=" กำลังย้ายไอ้เหีย"
+    QueueSelf()
+    local s=HS:JSONDecode(game:HttpGet(
+        "https://games.roblox.com/v1/games/"..PID.."/servers/Public?limit=100"
+    )).data
+    TS:TeleportToPlaceInstance(PID,s[math.random(#s)].id,P)
+end
+
+
+local function Start()
+    if Running then return end
+    Running=true
+
+    
+    for t=30,1,-1 do
+        if not _G.AutoHop then Running=false return end
+        status.Text="รอ Anosเกิด นะอีBim เหลือ "..t.." วิ"
+        if AnosAlive() then
+            status.Text="เจอ Anos กูบอกให้รีบตี"
+            break
+        end
+        task.wait(1)
+    end
+
+    if not AnosAlive() then
+        status.Text="ไม่เจอย้าย"
+        task.wait(2)
+        RandomHop()
+        return
+    end
+
+    while _G.AutoHop do
+        status.Text="เกิดแล้วมึงรีบๆตีดิ"
+        if not AnosAlive() then
+            status.Text="กำลังย้ายรอไปก่อน"
+            task.wait(2)
+            RandomHop()
+            break
+        end
+        task.wait(1)
+    end
+
+    Running=false
+end
+
+
+local function RefreshBtn()
+    if _G.AutoHop then
+        btn.Text="⏹ ปิด Auto Hop"
+        btn.BackgroundColor3=Color3.fromRGB(200,60,60)
+    else
+        btn.Text="▶ มึงจะปิดทำไมไอควาย เปิด"
+        btn.BackgroundColor3=Color3.fromRGB(60,180,75)
+        status.Text="⏸ Auto Hop : OFF"
+    end
+end
+
+btn.MouseButton1Click:Connect(function()
+    _G.AutoHop = not _G.AutoHop
+    RefreshBtn()
+    if _G.AutoHop then Start() end
+end)
+
+RefreshBtn()
+if _G.AutoHop then Start() end
