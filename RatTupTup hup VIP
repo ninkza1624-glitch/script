@@ -1,6 +1,5 @@
 --==================================================
--- Rogue Piece | Auto Farm Anos + Skill + Equip
--- Delta Compatible
+-- Rogue Piece | Auto Farm Anos (Delta / Mobile Safe)
 --==================================================
 
 --================ SERVICES =================
@@ -13,27 +12,18 @@ local HttpService = game:GetService("HttpService")
 local LocalPlayer = Players.LocalPlayer
 local PlaceId = game.PlaceId
 
---================ CONFIG (SAVE VIA getgenv) =================
+--================ CONFIG (SAVE) =================
 getgenv().RP_Config = getgenv().RP_Config or {
-    -- Hop
-    HopMode = "Private",
+    HopMode = "Private",     -- Private / Public
     Servers = {},
     ServerIndex = 1,
 
-    -- Timing
     WaitTime = 30,
     PublicCheckTime = 8,
 
-    -- Move
     WarpDistance = 4,
     TweenTime = 0.25,
 
-    -- Skill
-    SkillDelay = 0.6,
-    UseSkill = { Z=true, X=true, C=true, V=true },
-    EquipMode = "Combat", -- Combat / Sword / Fruit
-
-    -- State
     AutoFarm = false,
     Running = false
 }
@@ -58,6 +48,23 @@ local function GetAnos()
     end
 end
 
+--================ AUTO EQUIP (DELTA SAFE) =================
+local function AutoEquip()
+    local char = LocalPlayer.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    local bag = LocalPlayer:FindFirstChild("Backpack")
+    if not char or not hum or not bag then return end
+
+    if char:FindFirstChildOfClass("Tool") then return end
+
+    for _,tool in ipairs(bag:GetChildren()) do
+        if tool:IsA("Tool") then
+            hum:EquipTool(tool)
+            return
+        end
+    end
+end
+
 --================ TWEEN MOVE =================
 local Tweening = false
 local function TweenBehindAnos()
@@ -78,58 +85,19 @@ local function TweenBehindAnos()
     Tweening = false
 end
 
---================ AUTO EQUIP =================
-local function AutoEquip()
-    local char = LocalPlayer.Character
-    local hum = char and char:FindFirstChildOfClass("Humanoid")
-    local bag = LocalPlayer:FindFirstChild("Backpack")
-    if not char or not hum or not bag then return end
-
-    for _,tool in ipairs(bag:GetChildren()) do
-        if tool:IsA("Tool") then
-            local n = tool.Name:lower()
-            if Config.EquipMode=="Combat" and n:find("combat") then
-                hum:EquipTool(tool) return
-            elseif Config.EquipMode=="Sword" and n:find("sword") then
-                hum:EquipTool(tool) return
-            elseif Config.EquipMode=="Fruit" then
-                hum:EquipTool(tool) return
-            end
-        end
-    end
-end
-
---================ AUTO ATTACK + SKILL =================
-local skillIndex = 1
-local skillOrder = {"Z","X","C","V"}
-
+--================ AUTO ATTACK =================
 task.spawn(function()
-    while task.wait(0.2) do
+    while task.wait(0.25) do
         if Config.AutoFarm then
             AutoEquip()
             TweenBehindAnos()
 
-            local char = LocalPlayer.Character
-            local tool = char and char:FindFirstChildOfClass("Tool")
+            local tool = LocalPlayer.Character
+                and LocalPlayer.Character:FindFirstChildOfClass("Tool")
             if tool then
-                pcall(function() tool:Activate() end)
-            end
-        end
-    end
-end)
-
-task.spawn(function()
-    while task.wait(Config.SkillDelay) do
-        if Config.AutoFarm then
-            local key = skillOrder[skillIndex]
-            skillIndex = skillIndex % #skillOrder + 1
-
-            if Config.UseSkill[key] then
-                local tool = LocalPlayer.Character
-                    and LocalPlayer.Character:FindFirstChildOfClass("Tool")
-                if tool then
-                    pcall(function() tool:Activate() end)
-                end
+                pcall(function()
+                    tool:Activate()
+                end)
             end
         end
     end
@@ -182,13 +150,26 @@ local function StartAutoHop(Status)
             break
         end
     end)
+
+    -- Public → Check Anos
+    if Config.HopMode=="Public" then
+        task.spawn(function()
+            task.wait(Config.PublicCheckTime)
+            if not GetAnos() then
+                Status:UpdateLabel("❌ ไม่มี Anos → ข้าม")
+                task.wait(1)
+                HopPublic()
+            else
+                Status:UpdateLabel("✅ เจอ Anos")
+                Config.AutoFarm = true
+            end
+        end)
+    end
 end
 
 --================ UI =================
 local MainTab = Window:NewTab("Main")
 local Main = MainTab:NewSection("Control")
-local Skill = Window:NewTab("Skill"):NewSection("Skill Toggle")
-
 local Status = Window:NewTab("Status"):NewSection("Info")
 local StatusLabel = Status:NewLabel("พร้อมใช้งาน")
 
@@ -196,16 +177,8 @@ Main:NewDropdown("Hop Mode","",{"Private","Public"},function(v)
     Config.HopMode=v
 end)
 
-Main:NewDropdown("Auto Equip","",{"Combat","Sword","Fruit"},function(v)
-    Config.EquipMode=v
-end)
-
 Main:NewSlider("Warp Distance","",8,2,function(v)
     Config.WarpDistance=v
-end)
-
-Main:NewSlider("Skill Delay","",1,0.3,function(v)
-    Config.SkillDelay=v
 end)
 
 Main:NewToggle("Auto Farm Anos","",function(v)
@@ -218,12 +191,25 @@ Main:NewToggle("Auto Farm Anos","",function(v)
     end
 end)
 
--- Skill Toggles
-for _,k in ipairs({"Z","X","C","V"}) do
-    Skill:NewToggle("Use "..k,"",function(v)
-        Config.UseSkill[k]=v
-    end)
-end
+--================ MOBILE UI TOGGLE BUTTON =================
+local gui = Instance.new("ScreenGui", game.CoreGui)
+gui.Name = "ToggleUI_Mobile"
+
+local btn = Instance.new("TextButton", gui)
+btn.Size = UDim2.fromOffset(50,50)
+btn.Position = UDim2.fromScale(0.05,0.4)
+btn.Text = "≡"
+btn.TextScaled = true
+btn.BackgroundColor3 = Color3.fromRGB(30,30,30)
+btn.TextColor3 = Color3.new(1,1,1)
+btn.Active = true
+btn.Draggable = true
+btn.BorderSizePixel = 0
+Instance.new("UICorner",btn).CornerRadius = UDim.new(1,0)
+
+btn.MouseButton1Click:Connect(function()
+    Library:ToggleUI()
+end)
 
 UserInputService.InputBegan:Connect(function(i,gp)
     if not gp and i.KeyCode==Enum.KeyCode.RightShift then
@@ -231,4 +217,4 @@ UserInputService.InputBegan:Connect(function(i,gp)
     end
 end)
 
-StatusLabel:UpdateLabel("Delta Ready | RightShift เปิด/ปิด UI")
+StatusLabel:UpdateLabel("Mobile / Delta Ready")
