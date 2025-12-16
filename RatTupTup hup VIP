@@ -1,256 +1,88 @@
 --==================================================
--- RatTupTup Hup (VIP) | v1.0
--- Rogue Piece | Auto Farm Anos
--- Server Hop FIXED | Delta / Mobile Safe
+-- Public Server Hop ONLY
+-- Check Anos 65s → Kill or Not Found → Hop
+-- Estimate Old Server by Player Count
+-- Delta / Mobile Safe
 --==================================================
 
---================ VIP STYLE =================
-local VERSION = "v1.0"
-local VIP_GOLD = Color3.fromRGB(255,215,90)
-local VIP_NEON = Color3.fromRGB(255,240,180)
-
---================ SERVICES =================
 local Players = game:GetService("Players")
 local TeleportService = game:GetService("TeleportService")
-local TweenService = game:GetService("TweenService")
-local UserInputService = game:GetService("UserInputService")
 local HttpService = game:GetService("HttpService")
 
 local LP = Players.LocalPlayer
-local PlaceId = game.PlaceId
+local PLACE_ID = game.PlaceId
 
---================ SAVE ALL =================
-getgenv().RP_Save = getgenv().RP_Save or {
-    AutoFarm = false,
-    Running  = false,
+--================ SETTINGS =================
+local WAIT_TIME   = 65  -- ⏱ รอเช็ก Anos (วินาที)
+local MIN_PLAYERS = 5   -- 👥 กันเซิฟใหม่
+local MAX_PLAYERS = 10  -- 👥 กันเซิฟใกล้เต็ม
 
-    AutoEquip = true,
-    UseEquipList = true,
-    EquipList = {},
+--================ STATE =================
+local Running = false
 
-    WarpDistance = 4,
-    TweenTime = 0.25,
-
-    HopMode = "Private", -- Private / Public
-    Servers = {},
-    ServerIndex = 1,
-
-    WaitTime = 30,
-
-    UIOpen = true
-}
-local S = getgenv().RP_Save
-
---================ LOAD KAVO UI =================
-local Library = loadstring(game:HttpGet(
-    "https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"
-))()
-
-local Window = Library.CreateLib(
-    "RatTupTup Hup (VIP)  |  "..VERSION,
-    "Midnight"
-)
-
---================ BOSS DETECT =================
+--================ FIND ANOS =================
 local function GetAnos()
     for _,m in ipairs(workspace:GetDescendants()) do
-        if m.Name=="Anos" and m:IsA("Model") then
+        if m.Name == "Anos" and m:IsA("Model") then
             local hum = m:FindFirstChildOfClass("Humanoid")
-            local hrp = m:FindFirstChild("HumanoidRootPart")
-            if hum and hrp then
-                return hum, hrp
+            if hum and hum.Health > 0 then
+                return hum
             end
         end
     end
 end
 
---================ AUTO EQUIP =================
-local function NameInList(name)
-    for _,v in ipairs(S.EquipList) do
-        if name:lower():find(v:lower(),1,true) then
-            return true
+--================ PUBLIC HOP (FILTER) =================
+local function HopPublicEstimatedOld()
+    local ok,res = pcall(function()
+        return HttpService:JSONDecode(game:HttpGet(
+            "https://games.roblox.com/v1/games/"..PLACE_ID.."/servers/Public?limit=100"
+        ))
+    end)
+    if not ok or not res or not res.data or #res.data == 0 then return end
+
+    local pool = {}
+    for _,s in ipairs(res.data) do
+        if s.playing >= MIN_PLAYERS and s.playing <= MAX_PLAYERS then
+            table.insert(pool, s)
         end
     end
+
+    local pick
+    if #pool > 0 then
+        pick = pool[math.random(#pool)]
+    else
+        pick = res.data[math.random(#res.data)]
+    end
+
+    TeleportService:TeleportToPlaceInstance(PLACE_ID, pick.id, LP)
 end
 
-local function AutoEquip()
-    if not S.AutoEquip then return end
-    local char = LP.Character
-    local hum  = char and char:FindFirstChildOfClass("Humanoid")
-    local bag  = LP:FindFirstChild("Backpack")
-    if not char or not hum or not bag then return end
-    if char:FindFirstChildOfClass("Tool") then return end
-
-    if S.UseEquipList and #S.EquipList>0 then
-        for _,t in ipairs(bag:GetChildren()) do
-            if t:IsA("Tool") and NameInList(t.Name) then
-                hum:EquipTool(t)
-                return
-            end
-        end
-    end
-
-    for _,t in ipairs(bag:GetChildren()) do
-        if t:IsA("Tool") then
-            hum:EquipTool(t)
-            return
-        end
-    end
-end
-
---================ TWEEN BEHIND ANOS =================
-local Tweening=false
-local function TweenBehindAnos()
-    if Tweening then return end
-    local hum,hrp=GetAnos()
-    local char=LP.Character
-    local myhrp=char and char:FindFirstChild("HumanoidRootPart")
-    if not hum or hum.Health<=0 or not hrp or not myhrp then return end
-
-    Tweening=true
-    TweenService:Create(
-        myhrp,
-        TweenInfo.new(S.TweenTime,Enum.EasingStyle.Linear),
-        {CFrame=hrp.CFrame*CFrame.new(0,0,S.WarpDistance)}
-    ):Play()
-    task.wait(S.TweenTime)
-    Tweening=false
-end
-
---================ AUTO ATTACK =================
-task.spawn(function()
-    while task.wait(0.25) do
-        if S.AutoFarm then
-            AutoEquip()
-            TweenBehindAnos()
-            local tool=LP.Character and LP.Character:FindFirstChildOfClass("Tool")
-            if tool then pcall(function() tool:Activate() end) end
-        end
-    end
-end)
-
---================ SERVER HOP (FIXED) =================
-local function ServerHop(status)
-    if S.Running then return end
-    S.Running=true
+--================ MAIN FUNCTION =================
+local function ServerHop_PublicOnly_65s()
+    if Running then return end
+    Running = true
 
     task.spawn(function()
-        local t=S.WaitTime
-        while t>0 do
-            status:UpdateLabel("⏳ รอ "..t.." วิ")
+        local t = WAIT_TIME
+        while t > 0 do
             task.wait(1)
-            t-=1
+            t -= 1
 
-            local hum=GetAnos()
-            if hum and hum.Health>0 then
-                status:UpdateLabel("⚔️ เจอ Anos")
-                S.AutoFarm=true
-                while hum.Health>0 do task.wait(1) end
-                S.AutoFarm=false
-                status:UpdateLabel("☠️ Anos ตาย")
-                task.wait(2)
+            local hum = GetAnos()
+            if hum then
+                -- ⚔️ เจอ Anos → รอจนตาย
+                while hum.Health > 0 do
+                    task.wait(1)
+                end
                 break
             end
         end
 
-        status:UpdateLabel("🔁 ย้ายเซิฟ")
-        if S.HopMode=="Private" then
-            if #S.Servers==0 then
-                status:UpdateLabel("❌ ไม่มี AccessCode")
-                S.Running=false
-                return
-            end
-            local code=S.Servers[S.ServerIndex]
-            S.ServerIndex=(S.ServerIndex%#S.Servers)+1
-            TeleportService:TeleportToPrivateServer(PlaceId,code,LP)
-        else
-            local ok,res=pcall(function()
-                return HttpService:JSONDecode(game:HttpGet(
-                    "https://games.roblox.com/v1/games/"..PlaceId.."/servers/Public?limit=100"
-                ))
-            end)
-            if ok and res and res.data and #res.data>0 then
-                local s=res.data[math.random(#res.data)]
-                TeleportService:TeleportToPlaceInstance(PlaceId,s.id,LP)
-            else
-                status:UpdateLabel("❌ ย้ายไม่สำเร็จ")
-                S.Running=false
-            end
-        end
+        -- 🔁 ย้ายเซิฟ
+        HopPublicEstimatedOld()
     end)
 end
 
---================ UI =================
-local Main   = Window:NewTab("Main [VIP]"):NewSection("Control")
-local Equip  = Window:NewTab("Equip [VIP]"):NewSection("Auto Equip")
-local Status = Window:NewTab("Status [VIP]"):NewSection("Info")
-
-local StatusLabel=Status:NewLabel("พร้อมใช้งาน")
-
-Main:NewToggle("Auto Farm Anos [VIP]","",function(v)
-    if v then
-        ServerHop(StatusLabel)
-    else
-        S.AutoFarm=false
-        S.Running=false
-        StatusLabel:UpdateLabel("⏸ หยุดแล้ว")
-    end
-end)
-
-Main:NewDropdown("Hop Mode","",{"Private","Public"},function(v)
-    S.HopMode=v
-end)
-
-Main:NewSlider("Warp Distance","",8,2,function(v)
-    S.WarpDistance=v
-end)
-
-Equip:NewToggle("Auto Equip","",function(v)
-    S.AutoEquip=v
-end)
-
-Equip:NewTextBox("Add Tool Name","เช่น Combat / Katana",function(txt)
-    if txt~="" then table.insert(S.EquipList,txt) end
-end)
-
-Equip:NewButton("Clear Equip List","",function()
-    table.clear(S.EquipList)
-end)
-
---================ VIP CREDIT =================
-task.spawn(function()
-    task.wait(1)
-    local credit=Status:NewLabel("✨ RatTupTup Hup (VIP)\n"..VERSION.."\n© RatTupTup")
-    pcall(function()
-        local ui=credit.Instance
-        ui.TextColor3=VIP_GOLD
-        ui.TextStrokeTransparency=0.3
-        ui.TextStrokeColor3=VIP_NEON
-    end)
-end)
-
---================ MOBILE UI BUTTON =================
-local gui=Instance.new("ScreenGui",game.CoreGui)
-local btn=Instance.new("TextButton",gui)
-btn.Size=UDim2.fromOffset(50,50)
-btn.Position=UDim2.fromScale(0.05,0.4)
-btn.Text="≡"
-btn.TextScaled=true
-btn.BackgroundColor3=VIP_GOLD
-btn.TextColor3=Color3.fromRGB(30,30,30)
-btn.Active=true
-btn.Draggable=true
-btn.BorderSizePixel=0
-Instance.new("UICorner",btn).CornerRadius=UDim.new(1,0)
-
-btn.MouseButton1Click:Connect(function()
-    Library:ToggleUI()
-end)
-
-UserInputService.InputBegan:Connect(function(i,gp)
-    if not gp and i.KeyCode==Enum.KeyCode.RightShift then
-        Library:ToggleUI()
-    end
-end)
-
-StatusLabel:UpdateLabel("VIP Ready | Server Hop Fixed")
+--================ START =================
+ServerHop_PublicOnly_65s()
