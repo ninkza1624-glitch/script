@@ -1,8 +1,7 @@
 --==================================================
--- Public Server Hop ONLY
--- Check Anos 65s → Kill or Not Found → Hop
--- Estimate Old Server by Player Count
--- Delta / Mobile Safe
+-- Public Server Hop ONLY (STABLE)
+-- Check Anos 65s → Hop
+-- Delta / Mobile SAFE
 --==================================================
 
 local Players = game:GetService("Players")
@@ -13,18 +12,20 @@ local LP = Players.LocalPlayer
 local PLACE_ID = game.PlaceId
 
 --================ SETTINGS =================
-local WAIT_TIME   = 65  -- ⏱ รอเช็ก Anos (วินาที)
-local MIN_PLAYERS = 5   -- 👥 กันเซิฟใหม่
-local MAX_PLAYERS = 10  -- 👥 กันเซิฟใกล้เต็ม
+local WAIT_TIME   = 65  -- วินาที
+local MIN_PLAYERS = 5
+local MAX_PLAYERS = 10
 
 --================ STATE =================
-local Running = false
+if getgenv()._HOP_RUNNING then return end
+getgenv()._HOP_RUNNING = true
 
---================ FIND ANOS =================
-local function GetAnos()
-    for _,m in ipairs(workspace:GetDescendants()) do
+--================ FIND ANOS (SAFE) =================
+local function FindAnos()
+    local enemies = workspace:FindFirstChild("Enemies") or workspace
+    for _,m in pairs(enemies:GetChildren()) do
         if m.Name == "Anos" and m:IsA("Model") then
-            local hum = m:FindFirstChildOfClass("Humanoid")
+            local hum = m:FindFirstChild("Humanoid")
             if hum and hum.Health > 0 then
                 return hum
             end
@@ -32,57 +33,43 @@ local function GetAnos()
     end
 end
 
---================ PUBLIC HOP (FILTER) =================
-local function HopPublicEstimatedOld()
-    local ok,res = pcall(function()
+--================ HOP PUBLIC =================
+local function HopPublic()
+    local ok, res = pcall(function()
         return HttpService:JSONDecode(game:HttpGet(
             "https://games.roblox.com/v1/games/"..PLACE_ID.."/servers/Public?limit=100"
         ))
     end)
-    if not ok or not res or not res.data or #res.data == 0 then return end
+    if not ok or not res or not res.data then return end
 
     local pool = {}
-    for _,s in ipairs(res.data) do
+    for _,s in pairs(res.data) do
         if s.playing >= MIN_PLAYERS and s.playing <= MAX_PLAYERS then
             table.insert(pool, s)
         end
     end
 
-    local pick
-    if #pool > 0 then
-        pick = pool[math.random(#pool)]
-    else
-        pick = res.data[math.random(#res.data)]
-    end
-
+    local pick = (#pool > 0 and pool[math.random(#pool)]) or res.data[math.random(#res.data)]
     TeleportService:TeleportToPlaceInstance(PLACE_ID, pick.id, LP)
 end
 
---================ MAIN FUNCTION =================
-local function ServerHop_PublicOnly_65s()
-    if Running then return end
-    Running = true
+--================ MAIN =================
+spawn(function()
+    local t = WAIT_TIME
+    while t > 0 do
+        wait(1)
+        t = t - 1
 
-    task.spawn(function()
-        local t = WAIT_TIME
-        while t > 0 do
-            task.wait(1)
-            t -= 1
-
-            local hum = GetAnos()
-            if hum then
-                -- ⚔️ เจอ Anos → รอจนตาย
-                while hum.Health > 0 do
-                    task.wait(1)
-                end
-                break
+        local hum = FindAnos()
+        if hum then
+            -- เจอ Anos → รอจนตาย
+            while hum and hum.Health > 0 do
+                wait(1)
             end
+            break
         end
+    end
 
-        -- 🔁 ย้ายเซิฟ
-        HopPublicEstimatedOld()
-    end)
-end
-
---================ START =================
-ServerHop_PublicOnly_65s()
+    wait(1)
+    HopPublic()
+end)
