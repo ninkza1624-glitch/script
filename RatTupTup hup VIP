@@ -1,7 +1,7 @@
 --==================================================
 -- RatTupTup Hup (VIP) | v1.0
 -- Rogue Piece | Auto Farm Anos
--- Delta / Mobile Safe | Save Everything
+-- Server Hop FIXED | Delta / Mobile Safe
 --==================================================
 
 --================ VIP STYLE =================
@@ -24,25 +24,19 @@ getgenv().RP_Save = getgenv().RP_Save or {
     AutoFarm = false,
     Running  = false,
 
-    -- Auto Equip
     AutoEquip = true,
     UseEquipList = true,
     EquipList = {},
 
-    -- Movement
     WarpDistance = 4,
     TweenTime = 0.25,
 
-    -- Hop
-    HopMode = "Private",   -- Private / Public
+    HopMode = "Private", -- Private / Public
     Servers = {},
     ServerIndex = 1,
 
-    -- Timing
     WaitTime = 30,
-    PublicCheckTime = 8,
 
-    -- UI
     UIOpen = true
 }
 local S = getgenv().RP_Save
@@ -70,10 +64,10 @@ local function GetAnos()
     end
 end
 
---================ AUTO EQUIP (WITH LIST) =================
+--================ AUTO EQUIP =================
 local function NameInList(name)
     for _,v in ipairs(S.EquipList) do
-        if v ~= "" and string.find(name:lower(), v:lower(), 1, true) then
+        if name:lower():find(v:lower(),1,true) then
             return true
         end
     end
@@ -87,41 +81,40 @@ local function AutoEquip()
     if not char or not hum or not bag then return end
     if char:FindFirstChildOfClass("Tool") then return end
 
-    if S.UseEquipList and #S.EquipList > 0 then
-        for _,tool in ipairs(bag:GetChildren()) do
-            if tool:IsA("Tool") and NameInList(tool.Name) then
-                hum:EquipTool(tool)
+    if S.UseEquipList and #S.EquipList>0 then
+        for _,t in ipairs(bag:GetChildren()) do
+            if t:IsA("Tool") and NameInList(t.Name) then
+                hum:EquipTool(t)
                 return
             end
         end
     end
 
-    for _,tool in ipairs(bag:GetChildren()) do
-        if tool:IsA("Tool") then
-            hum:EquipTool(tool)
+    for _,t in ipairs(bag:GetChildren()) do
+        if t:IsA("Tool") then
+            hum:EquipTool(t)
             return
         end
     end
 end
 
---================ TWEEN MOVE =================
-local Tweening = false
+--================ TWEEN BEHIND ANOS =================
+local Tweening=false
 local function TweenBehindAnos()
     if Tweening then return end
-    local hum, hrp = GetAnos()
-    local char = LP.Character
-    local myhrp = char and char:FindFirstChild("HumanoidRootPart")
+    local hum,hrp=GetAnos()
+    local char=LP.Character
+    local myhrp=char and char:FindFirstChild("HumanoidRootPart")
     if not hum or hum.Health<=0 or not hrp or not myhrp then return end
 
-    Tweening = true
-    local tween = TweenService:Create(
+    Tweening=true
+    TweenService:Create(
         myhrp,
-        TweenInfo.new(S.TweenTime, Enum.EasingStyle.Linear),
-        {CFrame = hrp.CFrame * CFrame.new(0,0,S.WarpDistance)}
-    )
-    tween:Play()
-    tween.Completed:Wait()
-    Tweening = false
+        TweenInfo.new(S.TweenTime,Enum.EasingStyle.Linear),
+        {CFrame=hrp.CFrame*CFrame.new(0,0,S.WarpDistance)}
+    ):Play()
+    task.wait(S.TweenTime)
+    Tweening=false
 end
 
 --================ AUTO ATTACK =================
@@ -130,85 +123,78 @@ task.spawn(function()
         if S.AutoFarm then
             AutoEquip()
             TweenBehindAnos()
-            local tool = LP.Character and LP.Character:FindFirstChildOfClass("Tool")
+            local tool=LP.Character and LP.Character:FindFirstChildOfClass("Tool")
             if tool then pcall(function() tool:Activate() end) end
         end
     end
 end)
 
---================ PUBLIC HOP =================
-local function HopPublic()
-    local ok,res = pcall(function()
-        return HttpService:JSONDecode(game:HttpGet(
-            "https://games.roblox.com/v1/games/"..PlaceId.."/servers/Public?limit=100"
-        ))
-    end)
-    if ok and res and res.data and #res.data>0 then
-        local s = res.data[math.random(#res.data)]
-        TeleportService:TeleportToPlaceInstance(PlaceId,s.id,LP)
-    end
-end
-
---================ AUTO HOP =================
-local function StartAutoHop(Status)
+--================ SERVER HOP (FIXED) =================
+local function ServerHop(status)
     if S.Running then return end
-    S.Running = true
+    S.Running=true
 
     task.spawn(function()
-        while S.Running do
-            local t = S.WaitTime
-            while t>0 do
-                Status:UpdateLabel("⏳ รอ "..t.." วิ")
-                task.wait(1)
-                t -= 1
-                local hum = GetAnos()
-                if hum and hum.Health>0 then
-                    Status:UpdateLabel("⚔️ เจอ Anos")
-                    S.AutoFarm = true
-                    while hum.Health>0 do task.wait(1) end
-                    S.AutoFarm = false
-                    Status:UpdateLabel("☠️ Anos ตาย")
-                    break
-                end
-            end
+        local t=S.WaitTime
+        while t>0 do
+            status:UpdateLabel("⏳ รอ "..t.." วิ")
+            task.wait(1)
+            t-=1
 
-            Status:UpdateLabel("🔁 เปลี่ยนเซิฟ")
-            if S.HopMode=="Private" then
-                if #S.Servers==0 then
-                    Status:UpdateLabel("❌ ไม่มี AccessCode")
-                    S.Running=false
-                    return
-                end
-                local code = S.Servers[S.ServerIndex]
-                S.ServerIndex = S.ServerIndex % #S.Servers + 1
-                TeleportService:TeleportToPrivateServer(PlaceId,code,LP)
-            else
-                HopPublic()
+            local hum=GetAnos()
+            if hum and hum.Health>0 then
+                status:UpdateLabel("⚔️ เจอ Anos")
+                S.AutoFarm=true
+                while hum.Health>0 do task.wait(1) end
+                S.AutoFarm=false
+                status:UpdateLabel("☠️ Anos ตาย")
+                task.wait(2)
+                break
             end
-            break
+        end
+
+        status:UpdateLabel("🔁 ย้ายเซิฟ")
+        if S.HopMode=="Private" then
+            if #S.Servers==0 then
+                status:UpdateLabel("❌ ไม่มี AccessCode")
+                S.Running=false
+                return
+            end
+            local code=S.Servers[S.ServerIndex]
+            S.ServerIndex=(S.ServerIndex%#S.Servers)+1
+            TeleportService:TeleportToPrivateServer(PlaceId,code,LP)
+        else
+            local ok,res=pcall(function()
+                return HttpService:JSONDecode(game:HttpGet(
+                    "https://games.roblox.com/v1/games/"..PlaceId.."/servers/Public?limit=100"
+                ))
+            end)
+            if ok and res and res.data and #res.data>0 then
+                local s=res.data[math.random(#res.data)]
+                TeleportService:TeleportToPlaceInstance(PlaceId,s.id,LP)
+            else
+                status:UpdateLabel("❌ ย้ายไม่สำเร็จ")
+                S.Running=false
+            end
         end
     end)
 end
 
 --================ UI =================
 local Main   = Window:NewTab("Main [VIP]"):NewSection("Control")
-local Equip  = Window:NewTab("Equip [VIP]"):NewSection("Auto Equip List")
+local Equip  = Window:NewTab("Equip [VIP]"):NewSection("Auto Equip")
 local Status = Window:NewTab("Status [VIP]"):NewSection("Info")
 
-local StatusLabel = Status:NewLabel("พร้อมใช้งาน")
+local StatusLabel=Status:NewLabel("พร้อมใช้งาน")
 
 Main:NewToggle("Auto Farm Anos [VIP]","",function(v)
     if v then
-        StartAutoHop(StatusLabel)
+        ServerHop(StatusLabel)
     else
         S.AutoFarm=false
         S.Running=false
         StatusLabel:UpdateLabel("⏸ หยุดแล้ว")
     end
-end)
-
-Main:NewToggle("Auto Equip","",function(v)
-    S.AutoEquip = v
 end)
 
 Main:NewDropdown("Hop Mode","",{"Private","Public"},function(v)
@@ -219,12 +205,8 @@ Main:NewSlider("Warp Distance","",8,2,function(v)
     S.WarpDistance=v
 end)
 
-Main:NewSlider("Wait Time","",120,5,function(v)
-    S.WaitTime=v
-end)
-
-Equip:NewToggle("Use Equip List","",function(v)
-    S.UseEquipList=v
+Equip:NewToggle("Auto Equip","",function(v)
+    S.AutoEquip=v
 end)
 
 Equip:NewTextBox("Add Tool Name","เช่น Combat / Katana",function(txt)
@@ -235,46 +217,31 @@ Equip:NewButton("Clear Equip List","",function()
     table.clear(S.EquipList)
 end)
 
-local ListLabel = Equip:NewLabel("List: (empty)")
-task.spawn(function()
-    while task.wait(1) do
-        if #S.EquipList>0 then
-            ListLabel:UpdateLabel("List: "..table.concat(S.EquipList,", "))
-        else
-            ListLabel:UpdateLabel("List: (empty)")
-        end
-    end
-end)
-
---================ VIP CREDIT (GOLD / NEON) =================
+--================ VIP CREDIT =================
 task.spawn(function()
     task.wait(1)
-    local credit = Status:NewLabel(
-        "✨ RatTupTup Hup (VIP) ✨\n"..VERSION.."\n© RatTupTup"
-    )
+    local credit=Status:NewLabel("✨ RatTupTup Hup (VIP)\n"..VERSION.."\n© RatTupTup")
     pcall(function()
-        local ui = credit.Instance
-        ui.TextColor3 = VIP_GOLD
-        ui.TextStrokeTransparency = 0.3
-        ui.TextStrokeColor3 = VIP_NEON
+        local ui=credit.Instance
+        ui.TextColor3=VIP_GOLD
+        ui.TextStrokeTransparency=0.3
+        ui.TextStrokeColor3=VIP_NEON
     end)
 end)
 
 --================ MOBILE UI BUTTON =================
-local gui = Instance.new("ScreenGui", game.CoreGui)
-gui.Name = "MobileToggleUI"
-
-local btn = Instance.new("TextButton", gui)
-btn.Size = UDim2.fromOffset(50,50)
-btn.Position = UDim2.fromScale(0.05,0.4)
-btn.Text = "≡"
-btn.TextScaled = true
-btn.BackgroundColor3 = VIP_GOLD
-btn.TextColor3 = Color3.fromRGB(30,30,30)
-btn.Active = true
-btn.Draggable = true
-btn.BorderSizePixel = 0
-Instance.new("UICorner",btn).CornerRadius = UDim.new(1,0)
+local gui=Instance.new("ScreenGui",game.CoreGui)
+local btn=Instance.new("TextButton",gui)
+btn.Size=UDim2.fromOffset(50,50)
+btn.Position=UDim2.fromScale(0.05,0.4)
+btn.Text="≡"
+btn.TextScaled=true
+btn.BackgroundColor3=VIP_GOLD
+btn.TextColor3=Color3.fromRGB(30,30,30)
+btn.Active=true
+btn.Draggable=true
+btn.BorderSizePixel=0
+Instance.new("UICorner",btn).CornerRadius=UDim.new(1,0)
 
 btn.MouseButton1Click:Connect(function()
     Library:ToggleUI()
@@ -286,4 +253,4 @@ UserInputService.InputBegan:Connect(function(i,gp)
     end
 end)
 
-StatusLabel:UpdateLabel("VIP Ready | Delta / Mobile")
+StatusLabel:UpdateLabel("VIP Ready | Server Hop Fixed")
