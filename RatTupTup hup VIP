@@ -1,75 +1,120 @@
 --==================================================
--- Public Server Hop ONLY (STABLE)
--- Check Anos 65s → Hop
--- Delta / Mobile SAFE
+-- RatTupTup Hup (VIP)
+-- Public Server Hop + Countdown (Kavo UI)
+-- Closest to 9–10 min Server (Estimated)
 --==================================================
 
+-- SERVICES
 local Players = game:GetService("Players")
 local TeleportService = game:GetService("TeleportService")
 local HttpService = game:GetService("HttpService")
 
 local LP = Players.LocalPlayer
-local PLACE_ID = game.PlaceId
+local PlaceId = game.PlaceId
 
---================ SETTINGS =================
-local WAIT_TIME   = 65  -- วินาที
-local MIN_PLAYERS = 5
-local MAX_PLAYERS = 10
+-- SETTINGS
+local WAIT_TIME   = 65  -- ⏱ วินาที
+local MIN_PLAYERS = 6   -- ใกล้เซิฟกลาง
+local MAX_PLAYERS = 9
 
---================ STATE =================
-if getgenv()._HOP_RUNNING then return end
-getgenv()._HOP_RUNNING = true
+--==================================================
+-- LOAD KAVO UI (VIP)
+--==================================================
+local Library = loadstring(game:HttpGet(
+    "https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"
+))()
 
---================ FIND ANOS (SAFE) =================
+local Window = Library.CreateLib(
+    "RatTupTup Hup (VIP) | Server Hop",
+    "Midnight"
+)
+
+local MainTab = Window:NewTab("Main [VIP]")
+local MainSec = MainTab:NewSection("Server Status")
+
+local StatusLabel = MainSec:NewLabel("👑 VIP Ready | เตรียมระบบ...")
+
+--==================================================
+-- FIND ANOS (SAFE)
+--==================================================
 local function FindAnos()
-    local enemies = workspace:FindFirstChild("Enemies") or workspace
-    for _,m in pairs(enemies:GetChildren()) do
-        if m.Name == "Anos" and m:IsA("Model") then
-            local hum = m:FindFirstChild("Humanoid")
-            if hum and hum.Health > 0 then
-                return hum
+    local enemies = workspace:FindFirstChild("Enemies")
+    if enemies then
+        for _,m in pairs(enemies:GetChildren()) do
+            if m.Name == "Anos" then
+                local h = m:FindFirstChild("Humanoid")
+                if h and h.Health > 0 then
+                    return h
+                end
             end
         end
     end
 end
 
---================ HOP PUBLIC =================
-local function HopPublic()
-    local ok, res = pcall(function()
-        return HttpService:JSONDecode(game:HttpGet(
-            "https://games.roblox.com/v1/games/"..PLACE_ID.."/servers/Public?limit=100"
-        ))
+--==================================================
+-- GET PUBLIC SERVERS
+--==================================================
+local function GetServers()
+    local ok,res = pcall(function()
+        return HttpService:JSONDecode(
+            game:HttpGet(
+                "https://games.roblox.com/v1/games/"..PlaceId.."/servers/Public?limit=100"
+            )
+        )
     end)
-    if not ok or not res or not res.data then return end
+    if ok and res and res.data then
+        return res.data
+    end
+end
+
+--==================================================
+-- HOP SERVER (ESTIMATED OLD)
+--==================================================
+local function HopClosestOld()
+    local servers = GetServers()
+    if not servers or #servers == 0 then return end
 
     local pool = {}
-    for _,s in pairs(res.data) do
+    for _,s in pairs(servers) do
         if s.playing >= MIN_PLAYERS and s.playing <= MAX_PLAYERS then
             table.insert(pool, s)
         end
     end
 
-    local pick = (#pool > 0 and pool[math.random(#pool)]) or res.data[math.random(#res.data)]
-    TeleportService:TeleportToPlaceInstance(PLACE_ID, pick.id, LP)
+    local target
+    if #pool > 0 then
+        target = pool[math.random(1,#pool)]
+    else
+        target = servers[math.random(1,#servers)]
+    end
+
+    TeleportService:TeleportToPlaceInstance(PlaceId, target.id, LP)
 end
 
---================ MAIN =================
+--==================================================
+-- MAIN LOGIC + COUNTDOWN (VIP)
+--==================================================
 spawn(function()
-    local t = WAIT_TIME
-    while t > 0 do
-        wait(1)
-        t = t - 1
+    local timeLeft = WAIT_TIME
 
-        local hum = FindAnos()
-        if hum then
-            -- เจอ Anos → รอจนตาย
-            while hum and hum.Health > 0 do
+    while timeLeft > 0 do
+        StatusLabel:UpdateLabel("👑 VIP | ย้ายเซิฟในอีก "..timeLeft.." วิ")
+        wait(1)
+        timeLeft = timeLeft - 1
+
+        local anos = FindAnos()
+        if anos then
+            StatusLabel:UpdateLabel("⚔️ VIP | เจอ Anos – รอจนตาย")
+            while anos.Health > 0 do
                 wait(1)
             end
+            StatusLabel:UpdateLabel("☠️ VIP | Anos ตาย กำลังย้ายเซิฟ")
+            wait(1)
             break
         end
     end
 
+    StatusLabel:UpdateLabel("🔁 VIP | กำลังย้ายเซิฟ...")
     wait(1)
-    HopPublic()
+    HopClosestOld()
 end)
