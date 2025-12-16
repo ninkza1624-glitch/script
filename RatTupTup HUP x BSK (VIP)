@@ -44,7 +44,7 @@ end
 --==============================
 local CFG = loadConfig() or {
     Enabled = false,
-    Interval = 30
+    Interval = 5
 }
 
 --==============================
