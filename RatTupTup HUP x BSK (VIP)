@@ -1,0 +1,173 @@
+--================================================
+-- Kavo UI (Sentinel) | Auto Server Hop (Anos)
+-- + Countdown + Persistent Save (FILE)
+--================================================
+
+-- Services
+local Players = game:GetService("Players")
+local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
+local LP = Players.LocalPlayer
+local PlaceId = game.PlaceId
+
+--==============================
+-- File Save Helpers
+--==============================
+local FILE_NAME = "RatTupTup_AutoHop.json"
+
+local function canUseFile()
+    return writefile and readfile and isfile
+end
+
+local function loadConfig()
+    if canUseFile() and isfile(FILE_NAME) then
+        local ok, data = pcall(function()
+            return HttpService:JSONDecode(readfile(FILE_NAME))
+        end)
+        if ok and type(data) == "table" then
+            return data
+        end
+    end
+    return nil
+end
+
+local function saveConfig(cfg)
+    if canUseFile() then
+        pcall(function()
+            writefile(FILE_NAME, HttpService:JSONEncode(cfg))
+        end)
+    end
+end
+
+--==============================
+-- Load Config IMMEDIATELY
+--==============================
+local CFG = loadConfig() or {
+    Enabled = false,
+    Interval = 30
+}
+
+--==============================
+-- Load Kavo UI
+--==============================
+local Library = loadstring(game:HttpGet(
+    "https://raw.githubusercontent.com/xHeptc/Kavo-UI-Library/main/source.lua"
+))()
+
+local Window = Library.CreateLib("RatTupTup Hub [VIP]", "Sentinel")
+local Tab = Window:NewTab("Server")
+local Sec = Tab:NewSection("Auto Server Hop")
+
+--==============================
+-- UI Labels
+--==============================
+local StatusLabel = Sec:NewLabel("สถานะ: กำลังโหลด...")
+local TimerLabel  = Sec:NewLabel("ถัดไปใน: - วินาที")
+
+--==============================
+-- ฟังก์ชันเช็ก Anos
+--==============================
+local function IsAnosAlive()
+    for _,obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("Model") and obj.Name == "Anos" then
+            local hum = obj:FindFirstChildOfClass("Humanoid")
+            if hum and hum.Health > 0 then
+                return true
+            end
+        end
+    end
+    return false
+end
+
+--==============================
+-- Server Hop
+--==============================
+local function ServerHop()
+    local servers = HttpService:JSONDecode(game:HttpGet(
+        "https://games.roblox.com/v1/games/"..PlaceId.."/servers/Public?sortOrder=Asc&limit=100"
+    ))
+
+    local pool = {}
+    for _,s in ipairs(servers.data) do
+        if s.playing < s.maxPlayers then
+            table.insert(pool, s.id)
+        end
+    end
+
+    if #pool > 0 then
+        TeleportService:TeleportToPlaceInstance(
+            PlaceId,
+            pool[math.random(#pool)],
+            LP
+        )
+    end
+end
+
+--==============================
+-- Auto Loop + Countdown + Lock
+--==============================
+local FoundAnos = false
+
+task.spawn(function()
+    local counter = CFG.Interval
+
+    while true do
+        task.wait(1)
+
+        if not CFG.Enabled then
+            StatusLabel:UpdateLabel("สถานะ: ปิด Auto")
+            TimerLabel:UpdateLabel("ถัดไปใน: - วินาที")
+            counter = CFG.Interval
+            FoundAnos = false
+            continue
+        end
+
+        if FoundAnos then
+            TimerLabel:UpdateLabel("ถัดไปใน: รอ Anos ตาย")
+            if not IsAnosAlive() then
+                FoundAnos = false
+                StatusLabel:UpdateLabel("สถานะ: Anos ตาย → ย้ายเซิฟ")
+                task.wait(1)
+                ServerHop()
+            end
+            continue
+        end
+
+        TimerLabel:UpdateLabel("ถัดไปใน: "..counter.." วินาที")
+        counter -= 1
+
+        if counter <= 0 then
+            counter = CFG.Interval
+
+            if IsAnosAlive() then
+                FoundAnos = true
+                StatusLabel:UpdateLabel("สถานะ: เจอ Anos (หยุดย้าย)")
+            else
+                StatusLabel:UpdateLabel("สถานะ: ไม่เจอ Anos → ย้ายเซิฟ")
+                task.wait(1)
+                ServerHop()
+            end
+        end
+    end
+end)
+
+--==============================
+-- UI Controls (โหลดค่าทันที)
+--==============================
+Sec:NewToggle("เปิด Auto Hop", "เปิด/ปิดระบบออโต้", function(v)
+    CFG.Enabled = v
+    saveConfig(CFG)
+    StatusLabel:UpdateLabel(v and "สถานะ: เปิด Auto" or "สถานะ: ปิด Auto")
+end)
+
+Sec:NewSlider("เวลาเช็ก (วินาที)", 10, 120, CFG.Interval, function(v)
+    CFG.Interval = v
+    saveConfig(CFG)
+end)
+
+--==============================
+-- Apply Loaded State to UI
+--==============================
+StatusLabel:UpdateLabel(
+    CFG.Enabled and "สถานะ: เปิด Auto (โหลดจากไฟล์)" or "สถานะ: ปิด Auto (โหลดจากไฟล์)"
+)
